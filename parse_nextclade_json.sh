@@ -15,7 +15,6 @@
 
 jsonFile=${1}
 
-
 #--------------------------------------------------------------------
 # Get the number of entries (A.K.A genomes analyzed, fields in array).
 # Nextclade json files has 4 initial objects. Last one (results) is an
@@ -47,6 +46,15 @@ do
   #Get Nucleotide substitutions
   refNuc=$(jq '.results['$i'].substitutions[] | .refNuc + (.pos|tostring) + .queryNuc' ${jsonFile})
   echo ${refNuc} 
+
+  #Get insertions
+  insertions=$(jq '.results['$i'].insertions[] | (.pos|tostring) + ":" + .ins' ${jsonFile})
+  #Sometimes there are no insertions at all
+  if [ -z "${insertions}" ];then
+    insertions=$(echo "NA")
+  fi
+
+  echo ${insertions}
 
   echo "----------------"
 
