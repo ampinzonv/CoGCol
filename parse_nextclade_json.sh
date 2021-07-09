@@ -13,6 +13,48 @@
 #
 
 
+#--------------------------------------------------------------------
+#
+# Minimal input check.
+#
+#--------------------------------------------------------------------
+function input_error ()
+{
+  echo -e "
+  #
+  # ** ERROR **: ${1}
+  # 
+  #  Please check that you provided 2 arguments and/or paths are correct.
+  #
+  #  This script requires two input files:
+  #
+  #  1) A JSON file as obtained from NEXTCLADE.
+  #  2) A one column file holding a list of Variants of Interest to look for.
+  #
+  #  Example:
+  #
+  #  parse_nextclade_json.sh nextclade_output.json variants_file
+  #
+  " 
+  exit 0
+}
+
+
+if [ -z "$2" ]; then
+  input_error "Missing argument"
+fi
+ 
+if [ ! -f $1 ];then
+  input_error "File ${1} not found"
+fi  
+  
+if [ ! -f $2 ];then
+  input_error "File ${2} not found"
+fi
+
+
+
+
 jsonFile=${1}
 vocFile=${2}
 
@@ -70,13 +112,22 @@ do
   # no harm in this unset. Warnings are annoying!
   unset GREP_OPTIONS
   
+  # File V is an special case. It needs to be reset before the loop. But
+  # into the loop is not overwritten. Each loop is a new case.
+  # Note that v and V are two different files that hold the same information
+  # the difference is that v is the file before stripping end of lines.
+  rm -f ${tmpDir}/v
+  rm -f ${tmpDir}/V
+
   while read line
   do
    #Use -c to count number of matches. If == 1 means there was a match.
    match=$(echo ${aaSubst} | grep -c $line)
    
    if [ "$match" -eq 1 ];then
-     echo ${line}  > ${tmpDir}/V  
+     
+     # Here V file shouldn't be overwritten
+     echo ${line}  >> ${tmpDir}/v  
    fi
  done < ${vocFile}
 
@@ -95,14 +146,18 @@ do
   #
   #------------------------------------------------------------------
   cd ${tmpDir}
-  
-  #Paste does all the magic.
-  paste S C I A N 
 
+  #Replace line breaks from V file.
+  cat v | tr '\n' ' '  > V
+
+  #Paste does all the magic. Easy to modify columns position.
+  paste S C I A N V 
+  
   #We need to get back one dir up.
   cd ..
-
-  echo "-----"
+  
+  # USeful when terminal-debugging
+  # echo "-----"
 
 done
 
