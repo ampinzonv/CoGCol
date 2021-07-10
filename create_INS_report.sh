@@ -6,7 +6,7 @@
 # A simple script for parsing Nextclade`s json file.
 #
 # How to run it: 
-# $> parse_nextclade_json.sh nextclade.json  variantsOfConcern.lst
+# $> create_ins_report nextclade.json  variantsOfConcern.lst path_to_mosdepth_genome_dir
 #
 # !!!Note that this script relies on "jq" for json file parsing.
 #
@@ -24,16 +24,17 @@ function input_error ()
   #
   # ** ERROR **: ${1}
   # 
-  #  Please check that you provided 2 arguments and/or paths are correct.
+  #  Please check that you provided 3 arguments and/or paths are correct.
   #
-  #  This script requires two input files:
+  #  This script requires the following input files:
   #
   #  1) A JSON file as obtained from NEXTCLADE.
   #  2) A one column file holding a list of Variants of Interest to look for.
-  #
+  #  3) A path to a directory containing mosdepth coverage results. 
+
   #  Example:
   #
-  #  parse_nextclade_json.sh nextclade_output.json variants_file
+  #  parse_nextclade_json.sh  nextclade_output.json variants_file  mosdepth-genome-directory
   #
   " 
   exit 0
@@ -52,9 +53,18 @@ if [ ! -f $2 ];then
   input_error "File ${2} not found"
 fi
 
+if [ ! -d $3 ] || [ -z "$3"];then
+  input_error "Mosdepth directory ${3} not found"
+fi
 
+
+
+#--------------------------------------------------------------------
+# Input files
+#--------------------------------------------------------------------
 jsonFile=${1}
 vocFile=${2}
+mosDir=${3}
 
 #Create a temp dir to hold tmp files
 tmpDir=$(mktemp -d -p ./)
@@ -62,11 +72,11 @@ tmpDir=$(mktemp -d -p ./)
 #--------------------------------------------------------------------
 # Get the number of entries (A.K.A genomes analyzed, fields in array).
 # Nextclade json files has 4 initial objects. Last one (results) is an
-# array. This array length is variable and it depends on the number og ¡genomes
-# analyzed.
+# array. This array length is variable and it depends on the number of 
+# genomes analyzed.
 #--------------------------------------------------------------------
 resultsLength=$(jq '.results[] | length' ${jsonFile} | wc -l)
-#arrayLength=$(($l-1))
+
 
 #--------------------------------------------------------------------
 # Iterate through each object in array.
@@ -132,9 +142,21 @@ do
      # Here V file shouldn't be overwritten
      echo ${line}  >> ${tmpDir}/v  
    fi
- done < ${vocFile}
+  done < ${vocFile}
 
   set GREP_OPTIONS
+
+
+  #------------------------------------------------------------------
+  # MOSDEPTH ROUTINE
+  # 
+  #
+  #------------------------------------------------------------------
+  mosSummaryFile=$(echo ${mosDir}"/genome/"${sampleName}".mosdepth.summary.txt")
+  meanDepth=$(tail ${mosSummaryFile} | awk '{print $4}')
+  echo ${meanDepth} > ${tmpDir}/D
+
+
 
   #------------------------------------------------------------------
   # We need to gather all retrieved information and format it in a 
@@ -146,6 +168,7 @@ do
   # A: Aminoacid Substitutions
   # N: Nucleotide substitutions
   # V: Variants of interest
+  # D: Mosdepth mean depth
   #
   #------------------------------------------------------------------
   cd ${tmpDir}
@@ -154,14 +177,19 @@ do
   cat v | tr '\n' ' '  > V
 
   #Paste does all the magic. Easy to modify columns position.
-  paste S C I A N V 
+  paste S C V I N A D 
   
   #We need to get back one dir up.
   cd ..
   
-  # USeful when terminal-debugging
+  # Useful when terminal-debugging
   # echo "-----"
 
 done
 
+
+#Cleaning up.
 rm -Rf ${tmpDir}
+
+#Clean exit
+exit 0
